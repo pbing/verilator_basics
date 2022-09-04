@@ -11,8 +11,8 @@
 
 #define MAX_SIM_TIME 300
 #define VERIF_START_TIME 7
-vluint64_t sim_time = 0;
-vluint64_t posedge_cnt = 0;
+uint64_t sim_time = 0;
+uint64_t posedge_cnt = 0;
 
 // ALU input interface transaction item class
 class AluInTx {
@@ -50,12 +50,11 @@ class AluScb {
             // before an input gets driven to the input interface
             if(in_q.empty()){
                 std::cout <<"Fatal Error in AluScb: empty AluInTx queue" << std::endl;
-                exit(1);
+                exit(EXIT_FAILURE);
             }
 
             // Grab the transaction item from the front of the input item queue
-            AluInTx* in;
-            in = in_q.front();
+            auto in = in_q.front();
             in_q.pop_front();
 
             switch(in->op){
@@ -63,7 +62,7 @@ class AluScb {
                 // so we should never get a transaction item where the operation is NOP
                 case AluInTx::nop :
                     std::cout << "Fatal error in AluScb, received NOP on input" << std::endl;
-                    exit(1);
+                    exit(EXIT_FAILURE);
                     break;
 
                 // Received transaction is add
@@ -98,19 +97,19 @@ class AluScb {
 // ALU input interface driver
 class AluInDrv {
     private:
-        Valu *dut;
+        std::shared_ptr<Valu> dut;
     public:
-        AluInDrv(Valu *dut){
+        AluInDrv(const std::shared_ptr<Valu> &dut){
             this->dut = dut;
         }
 
-        void drive(AluInTx *tx){
+        void drive(const AluInTx *tx){
             // we always start with in_valid set to 0, and set it to
             // 1 later only if necessary
             dut->in_valid = 0;
 
             // Don't drive anything if a transaction item doesn't exist
-            if(tx != NULL){
+            if(tx != nullptr){
                 if (tx->op != AluInTx::nop) {
                     // If the operation is not a NOP, we drive it onto the
                     // input interface pins
@@ -129,10 +128,10 @@ class AluInDrv {
 // ALU input interface monitor
 class AluInMon {
     private:
-        Valu *dut;
-        AluScb *scb;
+        std::shared_ptr<Valu>   dut;
+        std::shared_ptr<AluScb> scb;
     public:
-        AluInMon(Valu *dut, AluScb *scb){
+        AluInMon(const std::shared_ptr<Valu> &dut, const std::shared_ptr<AluScb> &scb){
             this->dut = dut;
             this->scb = scb;
         }
@@ -142,7 +141,7 @@ class AluInMon {
                 // If there is valid data at the input interface,
                 // create a new AluInTx transaction item and populate
                 // it with data observed at the interface pins
-                AluInTx *tx = new AluInTx();
+                auto tx = new AluInTx();
                 tx->op = AluInTx::Operation(dut->op_in);
                 tx->a = dut->a_in;
                 tx->b = dut->b_in;
@@ -156,10 +155,10 @@ class AluInMon {
 // ALU output interface monitor
 class AluOutMon {
     private:
-        Valu *dut;
-        AluScb *scb;
+        std::shared_ptr<Valu> dut;
+        std::shared_ptr<AluScb> scb;
     public:
-        AluOutMon(Valu *dut, AluScb *scb){
+        AluOutMon(const std::shared_ptr<Valu> &dut, const std::shared_ptr<AluScb> &scb){
             this->dut = dut;
             this->scb = scb;
         }
@@ -169,7 +168,7 @@ class AluOutMon {
                 // If there is valid data at the output interface,
                 // create a new AluOutTx transaction item and populate
                 // it with result observed at the interface pins
-                AluOutTx *tx = new AluOutTx();
+                auto tx = new AluOutTx();
                 tx->out = dut->out;
 
                 // then pass the transaction item to the scoreboard
@@ -185,18 +184,17 @@ class AluOutMon {
 AluInTx* rndAluInTx(){
     //20% chance of generating a transaction
     if(rand()%5 == 0){
-        AluInTx *tx = new AluInTx();
+        auto tx = new AluInTx();
         tx->op = AluInTx::Operation(rand() % 3); // Our ENUM only has entries with values 0, 1, 2
         tx->a = rand() % 11 + 10; // generate a in range 10-20
         tx->b = rand() % 6;  // generate b in range 0-5
         return tx;
     } else {
-        return NULL;
+        return nullptr;
     }
 }
 
-
-void dut_reset (Valu *dut, vluint64_t &sim_time){
+void dut_reset (const std::shared_ptr<Valu> &dut, const uint64_t &sim_time){
     dut->rst = 0;
     if(sim_time >= 3 && sim_time < 6){
         dut->rst = 1;
@@ -208,22 +206,20 @@ void dut_reset (Valu *dut, vluint64_t &sim_time){
 }
 
 int main(int argc, char** argv, char** env) {
-    srand (time(NULL));
+    srand (time(nullptr));
     Verilated::commandArgs(argc, argv);
-    Valu *dut = new Valu;
+    auto dut = std::make_shared<Valu>();
 
     Verilated::traceEverOn(true);
-    VerilatedVcdC *m_trace = new VerilatedVcdC;
-    dut->trace(m_trace, 5);
+    auto m_trace = std::make_unique<VerilatedVcdC>();
+    dut->trace(m_trace.get(), 5);
     m_trace->open("waveform.vcd");
 
-    AluInTx   *tx;
-
     // Here we create the driver, scoreboard, input and output monitor blocks
-    AluInDrv  *drv    = new AluInDrv(dut);
-    AluScb    *scb    = new AluScb();
-    AluInMon  *inMon  = new AluInMon(dut, scb);
-    AluOutMon *outMon = new AluOutMon(dut, scb);
+    auto drv    = std::make_unique<AluInDrv>(dut);
+    auto scb    = std::make_shared<AluScb>();
+    auto inMon  = std::make_unique<AluInMon>(dut, scb);
+    auto outMon = std::make_unique<AluOutMon>(dut, scb);
 
     while (sim_time < MAX_SIM_TIME) {
         dut_reset(dut, sim_time);
@@ -235,7 +231,7 @@ int main(int argc, char** argv, char** env) {
 
             if (sim_time >= VERIF_START_TIME) {
                 // Generate a randomised transaction item of type AluInTx
-                tx = rndAluInTx();
+                auto tx = rndAluInTx();
 
                 // Pass the transaction item to the ALU input interface driver,
                 // which drives the input interface based on the info in the
@@ -256,10 +252,5 @@ int main(int argc, char** argv, char** env) {
     }
 
     m_trace->close();
-    delete dut;
-    delete outMon;
-    delete inMon;
-    delete scb;
-    delete drv;
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
