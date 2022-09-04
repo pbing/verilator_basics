@@ -42,7 +42,7 @@ private:
         
 public:
   // Input interface monitor port
-  void writeIn(AluInTx *tx)
+  void writeIn(AluInTx* tx)
   {
     // Push the received transaction item into a queue for later
     in_q.push_back(tx);
@@ -59,7 +59,7 @@ public:
     }
 
     // Grab the transaction item from the front of the input item queue
-    auto in = in_q.front();
+    AluInTx* in = in_q.front();
     in_q.pop_front();
 
     switch(in->op) {
@@ -103,12 +103,12 @@ class AluInDrv
 private:
   std::shared_ptr<Valu> dut;
 public:
-  AluInDrv(const std::shared_ptr<Valu> &dut)
+  AluInDrv(const std::shared_ptr<Valu>& dut)
     : dut(dut)
   {
   }
 
-  void drive(const AluInTx *tx)
+  void drive(const AluInTx* tx)
   {
     // we always start with in_valid set to 0, and set it to
     // 1 later only if necessary
@@ -138,7 +138,7 @@ private:
   std::shared_ptr<Valu>   dut;
   std::shared_ptr<AluScb> scb;
 public:
-  AluInMon(const std::shared_ptr<Valu> &dut, const std::shared_ptr<AluScb> &scb)
+  AluInMon(const std::shared_ptr<Valu>& dut, const std::shared_ptr<AluScb>& scb)
     : dut(dut), scb(scb)
   {
   }
@@ -149,7 +149,7 @@ public:
       // If there is valid data at the input interface,
       // create a new AluInTx transaction item and populate
       // it with data observed at the interface pins
-      auto tx = new AluInTx();
+      AluInTx* tx = new AluInTx();
       tx->op = AluInTx::Operation(dut->op_in);
       tx->a = dut->a_in;
       tx->b = dut->b_in;
@@ -167,7 +167,7 @@ private:
   std::shared_ptr<Valu> dut;
   std::shared_ptr<AluScb> scb;
 public:
-  AluOutMon(const std::shared_ptr<Valu> &dut, const std::shared_ptr<AluScb> &scb)
+  AluOutMon(const std::shared_ptr<Valu>& dut, const std::shared_ptr<AluScb>& scb)
     : dut(dut), scb(scb)
   {
   }
@@ -178,7 +178,7 @@ public:
       // If there is valid data at the output interface,
       // create a new AluOutTx transaction item and populate
       // it with result observed at the interface pins
-      auto tx = new AluOutTx();
+      AluOutTx* tx = new AluOutTx();
       tx->out = dut->out;
 
       // then pass the transaction item to the scoreboard
@@ -194,8 +194,8 @@ public:
 AluInTx* rndAluInTx()
 {
   //20% chance of generating a transaction
-  if (rand()%5 == 0) {
-    auto tx = new AluInTx();
+  if (rand() % 5 == 0) {
+    AluInTx* tx = new AluInTx();
     tx->op = AluInTx::Operation(rand() % 3); // Our ENUM only has entries with values 0, 1, 2
     tx->a = rand() % 11 + 10; // generate a in range 10-20
     tx->b = rand() % 6;  // generate b in range 0-5
@@ -205,7 +205,7 @@ AluInTx* rndAluInTx()
   }
 }
 
-void dut_reset (const std::shared_ptr<Valu> &dut, const uint64_t &sim_time)
+void dut_reset (const std::shared_ptr<Valu>& dut, const uint64_t& sim_time)
 {
   dut->rst = 0;
   if (sim_time >= 3 && sim_time < 6) {
@@ -244,7 +244,7 @@ int main(int argc, char** argv, char** env)
 
       if (sim_time >= VERIF_START_TIME) {
         // Generate a randomised transaction item of type AluInTx
-        auto tx = rndAluInTx();
+        AluInTx* tx = rndAluInTx();
 
         // Pass the transaction item to the ALU input interface driver,
         // which drives the input interface based on the info in the
