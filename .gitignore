@@ -1,3 +1,4 @@
 obj_dir
 .stamp.verilate
 waveform.vcd
+waveform.fst

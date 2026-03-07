@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <memory>
 #include <verilated.h>
-#include <verilated_vcd_c.h>
+#include <verilated_fst_c.h>
 #include "Valu.h"
 #include "Valu___024unit.h"
 
@@ -35,17 +35,17 @@ class AluOutTx {
 // ALU scoreboard
 class AluScb {
     private:
-        std::deque<AluInTx*> in_q;
+        std::deque<std::unique_ptr<AluInTx>> in_q;
         
     public:
         // Input interface monitor port
-        void writeIn(AluInTx *tx){
+        void writeIn(std::unique_ptr<AluInTx> tx){
             // Push the received transaction item into a queue for later
-            in_q.push_back(tx);
+            in_q.push_back(std::move(tx));
         }
 
         // Output interface monitor port
-        void writeOut(AluOutTx* tx){
+        void writeOut(std::unique_ptr<AluOutTx> tx){
             // We should never get any data from the output interface
             // before an input gets driven to the input interface
             if(in_q.empty()){
@@ -54,8 +54,8 @@ class AluScb {
             }
 
             // Grab the transaction item from the front of the input item queue
-            AluInTx* in;
-            in = in_q.front();
+            std::unique_ptr<AluInTx> in;
+            in = std::move(in_q.front());
             in_q.pop_front();
 
             switch(in->op){
@@ -88,23 +88,19 @@ class AluScb {
                     }
                     break;
             }
-            // As the transaction items were allocated on the heap, it's important
-            // to free the memory after they have been used
-            delete in;
-            delete tx;
         }
 };
 
 // ALU input interface driver
 class AluInDrv {
     private:
-        Valu *dut;
+        std::shared_ptr<Valu> dut;
     public:
-        AluInDrv(Valu *dut){
+        AluInDrv(std::shared_ptr<Valu> dut){
             this->dut = dut;
         }
 
-        void drive(AluInTx *tx){
+        void drive(std::unique_ptr<AluInTx> tx){
             // we always start with in_valid set to 0, and set it to
             // 1 later only if necessary
             dut->in_valid = 0;
@@ -119,9 +115,6 @@ class AluInDrv {
                     dut->a_in = tx->a;
                     dut->b_in = tx->b;
                 }
-                // Release the memory by deleting the tx item
-                // after it has been consumed
-                delete tx;
             }
         }
 };
@@ -129,10 +122,10 @@ class AluInDrv {
 // ALU input interface monitor
 class AluInMon {
     private:
-        Valu *dut;
-        AluScb *scb;
+        std::shared_ptr<Valu> dut;
+        std::shared_ptr<AluScb> scb;
     public:
-        AluInMon(Valu *dut, AluScb *scb){
+        AluInMon(std::shared_ptr<Valu> dut, std::shared_ptr<AluScb> scb){
             this->dut = dut;
             this->scb = scb;
         }
@@ -142,13 +135,13 @@ class AluInMon {
                 // If there is valid data at the input interface,
                 // create a new AluInTx transaction item and populate
                 // it with data observed at the interface pins
-                AluInTx *tx = new AluInTx();
+                auto tx{std::make_unique<AluInTx>()};
                 tx->op = AluInTx::Operation(dut->op_in);
                 tx->a = dut->a_in;
                 tx->b = dut->b_in;
 
                 // then pass the transaction item to the scoreboard
-                scb->writeIn(tx);
+                scb->writeIn(std::move(tx));
             }
         }
 };
@@ -156,10 +149,10 @@ class AluInMon {
 // ALU output interface monitor
 class AluOutMon {
     private:
-        Valu *dut;
-        AluScb *scb;
+        std::shared_ptr<Valu> dut;
+        std::shared_ptr<AluScb> scb;
     public:
-        AluOutMon(Valu *dut, AluScb *scb){
+        AluOutMon(std::shared_ptr<Valu> dut, std::shared_ptr<AluScb> scb){
             this->dut = dut;
             this->scb = scb;
         }
@@ -169,11 +162,11 @@ class AluOutMon {
                 // If there is valid data at the output interface,
                 // create a new AluOutTx transaction item and populate
                 // it with result observed at the interface pins
-                AluOutTx *tx = new AluOutTx();
+                auto tx{std::make_unique<AluOutTx>()};
                 tx->out = dut->out;
 
                 // then pass the transaction item to the scoreboard
-                scb->writeOut(tx);
+                scb->writeOut(std::move(tx));
             }
         }
 };
@@ -182,10 +175,10 @@ class AluOutMon {
 // This will allocate memory for an AluInTx
 // transaction item, randomise the data, and
 // return a pointer to the transaction item object
-AluInTx* rndAluInTx(){
+std::unique_ptr<AluInTx> rndAluInTx(){
     //20% chance of generating a transaction
     if(rand()%5 == 0){
-        AluInTx *tx = new AluInTx();
+        auto tx{std::make_unique<AluInTx>()};
         tx->op = AluInTx::Operation(rand() % 3); // Our ENUM only has entries with values 0, 1, 2
         tx->a = rand() % 11 + 10; // generate a in range 10-20
         tx->b = rand() % 6;  // generate b in range 0-5
@@ -196,7 +189,7 @@ AluInTx* rndAluInTx(){
 }
 
 
-void dut_reset (Valu *dut, vluint64_t &sim_time){
+void dut_reset (std::shared_ptr<Valu> dut, vluint64_t &sim_time){
     dut->rst = 0;
     if(sim_time >= 3 && sim_time < 6){
         dut->rst = 1;
@@ -210,20 +203,20 @@ void dut_reset (Valu *dut, vluint64_t &sim_time){
 int main(int argc, char** argv, char** env) {
     srand (time(NULL));
     Verilated::commandArgs(argc, argv);
-    Valu *dut = new Valu;
+    const auto dut{std::make_shared<Valu>()};
 
     Verilated::traceEverOn(true);
-    VerilatedVcdC *m_trace = new VerilatedVcdC;
-    dut->trace(m_trace, 5);
-    m_trace->open("waveform.vcd");
+    const auto m_trace{std::make_unique<VerilatedFstC>()};
+    dut->trace(m_trace.get(), 5);
+    m_trace->open("waveform.fst");
 
-    AluInTx   *tx;
+    std::unique_ptr<AluInTx> tx;
 
     // Here we create the driver, scoreboard, input and output monitor blocks
-    AluInDrv  *drv    = new AluInDrv(dut);
-    AluScb    *scb    = new AluScb();
-    AluInMon  *inMon  = new AluInMon(dut, scb);
-    AluOutMon *outMon = new AluOutMon(dut, scb);
+    const auto drv{std::make_unique<AluInDrv>(dut)};
+    const auto scb{std::make_shared<AluScb>()};
+    const auto inMon{std::make_unique<AluInMon>(dut, scb)};
+    const auto outMon{std::make_unique<AluOutMon>(dut, scb)};
 
     while (sim_time < MAX_SIM_TIME) {
         dut_reset(dut, sim_time);
@@ -240,7 +233,7 @@ int main(int argc, char** argv, char** env) {
                 // Pass the transaction item to the ALU input interface driver,
                 // which drives the input interface based on the info in the
                 // transaction item
-                drv->drive(tx);
+                drv->drive(std::move(tx));
 
                 // Monitor the input interface
                 inMon->monitor();
@@ -256,10 +249,5 @@ int main(int argc, char** argv, char** env) {
     }
 
     m_trace->close();
-    delete dut;
-    delete outMon;
-    delete inMon;
-    delete scb;
-    delete drv;
     exit(EXIT_SUCCESS);
 }
