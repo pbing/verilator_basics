@@ -35,13 +35,13 @@ class AluOutTx {
 // ALU scoreboard
 class AluScb {
     private:
-        std::deque<std::unique_ptr<AluInTx>> in_q;
+        std::queue<std::unique_ptr<AluInTx>> in_q;
         
     public:
         // Input interface monitor port
         void writeIn(std::unique_ptr<AluInTx> tx){
             // Push the received transaction item into a queue for later
-            in_q.emplace_back(std::move(tx));
+            in_q.emplace(std::move(tx));
         }
 
         // Output interface monitor port
@@ -55,7 +55,7 @@ class AluScb {
 
             // Grab the transaction item from the front of the input item queue
             std::unique_ptr<AluInTx> in{std::move(in_q.front())};
-            in_q.pop_front();
+            in_q.pop();
 
             switch(in->op){
                 // A valid signal should not be created at the output when there is no operation,
