@@ -45,7 +45,7 @@ class AluScb {
         }
 
         // Output interface monitor port
-        void writeOut(std::unique_ptr<AluOutTx> tx){
+        void writeOut(const std::unique_ptr<AluOutTx> tx){
             // We should never get any data from the output interface
             // before an input gets driven to the input interface
             if(in_q.empty()){
@@ -95,11 +95,9 @@ class AluInDrv {
     private:
         std::shared_ptr<Valu> dut;
     public:
-        AluInDrv(std::shared_ptr<Valu> dut){
-            this->dut = dut;
-        }
+        AluInDrv(const std::shared_ptr<Valu> dut) : dut(dut) {}
 
-        void drive(std::unique_ptr<AluInTx> tx){
+        void drive(const std::unique_ptr<AluInTx> tx){
             // we always start with in_valid set to 0, and set it to
             // 1 later only if necessary
             dut->in_valid = 0;
@@ -124,10 +122,7 @@ class AluInMon {
         std::shared_ptr<Valu> dut;
         std::shared_ptr<AluScb> scb;
     public:
-        AluInMon(std::shared_ptr<Valu> dut, std::shared_ptr<AluScb> scb){
-            this->dut = dut;
-            this->scb = scb;
-        }
+        AluInMon(const std::shared_ptr<Valu> dut, const std::shared_ptr<AluScb> scb) : dut(dut), scb(scb) {}
 
         void monitor(){
             if (dut->in_valid == 1) {
@@ -151,10 +146,7 @@ class AluOutMon {
         std::shared_ptr<Valu> dut;
         std::shared_ptr<AluScb> scb;
     public:
-        AluOutMon(std::shared_ptr<Valu> dut, std::shared_ptr<AluScb> scb){
-            this->dut = dut;
-            this->scb = scb;
-        }
+        AluOutMon(const std::shared_ptr<Valu> dut, const std::shared_ptr<AluScb> scb) : dut(dut), scb(scb) {}
 
         void monitor(){
             if (dut->out_valid == 1) {
@@ -188,7 +180,7 @@ std::unique_ptr<AluInTx> rndAluInTx(){
 }
 
 
-void dut_reset (std::shared_ptr<Valu> dut, vluint64_t &sim_time){
+void dut_reset (const std::shared_ptr<Valu> dut, const vluint64_t sim_time){
     dut->rst = 0;
     if(sim_time >= 3 && sim_time < 6){
         dut->rst = 1;
