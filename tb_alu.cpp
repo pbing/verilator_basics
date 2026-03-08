@@ -103,7 +103,7 @@ class AluInDrv {
             dut->in_valid = 0;
 
             // Don't drive anything if a transaction item doesn't exist
-            if(tx != NULL){
+            if(tx != nullptr){
                 if (tx->op != AluInTx::nop) {
                     // If the operation is not a NOP, we drive it onto the
                     // input interface pins
@@ -175,7 +175,7 @@ std::unique_ptr<AluInTx> rndAluInTx(){
         tx->b = rand() % 6;  // generate b in range 0-5
         return tx;
     } else {
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -201,8 +201,6 @@ int main(int argc, char** argv, char** env) {
     dut->trace(m_trace.get(), 5);
     m_trace->open("waveform.fst");
 
-    std::unique_ptr<AluInTx> tx;
-
     // Here we create the driver, scoreboard, input and output monitor blocks
     const auto drv{std::make_unique<AluInDrv>(dut)};
     const auto scb{std::make_shared<AluScb>()};
@@ -219,7 +217,7 @@ int main(int argc, char** argv, char** env) {
 
             if (sim_time >= VERIF_START_TIME) {
                 // Generate a randomised transaction item of type AluInTx
-                tx = rndAluInTx();
+                std::unique_ptr<AluInTx> tx{rndAluInTx()};
 
                 // Pass the transaction item to the ALU input interface driver,
                 // which drives the input interface based on the info in the
@@ -240,5 +238,5 @@ int main(int argc, char** argv, char** env) {
     }
 
     m_trace->close();
-    exit(EXIT_SUCCESS);
+    return 0;
 }
